@@ -10,22 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Завантажуємо репозиторій
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           persist-credentials: true  # важливо для пушу
 
+      # 2️⃣ Встановлюємо Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
+      # 3️⃣ Встановлюємо бібліотеки
       - name: Install dependencies
         run: pip install pandas openpyxl
 
+      # 4️⃣ Перевірка файлів у репозиторії
+      - name: List repo files
+        run: ls -l
+
+      # 5️⃣ Конвертація Excel у JSON
       - name: Convert Excel to JSON
         run: python convert_excel_to_json.py
 
+      # 6️⃣ Комітимо та пушимо JSON тільки якщо він змінився
       - name: Commit and push JSON if changed
         run: |
           git config --global user.name "github-actions[bot]"
