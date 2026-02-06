@@ -40,7 +40,7 @@ def main():
         print(f"❌ Файл {EXCEL_FILE} не знайдено")
         sys.exit(1)
 
-    df = pd.read_excel(EXCEL_FILE, header=0, engine="openpyxl")
+    df = pd.read_excel(EXCEL_FILE, header=2, engine="openpyxl")
 
     required_columns = ["ПК", "Посада"]
 
