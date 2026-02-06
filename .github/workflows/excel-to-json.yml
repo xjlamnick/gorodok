@@ -3,7 +3,7 @@ name: Convert Sales Excel to JSON
 on:
   push:
     paths:
-      - 'sales.xlsx'   # запускаємо workflow тільки коли змінюється Excel
+      - 'sales.xlsx'   # запускаємо workflow тільки якщо змінився Excel
 
 jobs:
   convert:
@@ -22,12 +22,16 @@ jobs:
         run: pip install pandas openpyxl
 
       - name: Convert Excel to JSON
-        run: deploy.py
+        run: python convert_excel_to_json.py
 
-      - name: Commit and Push JSON
+      - name: Commit and Push JSON if changed
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add sales-data.json
-          git commit -m "Update sales-data.json from Excel [skip ci]" || echo "No changes to commit"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "Update sales-data.json from Excel [skip ci]"
+            git push
+          else
+            echo "No changes detected in JSON"
+          fi
