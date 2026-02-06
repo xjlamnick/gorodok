@@ -2,7 +2,7 @@ import pandas as pd
 import json
 
 # Читаємо Excel
-df = pd.read_excel('sales.xlsx', sheet_name='Sheet1')  # змінити на реальний лист, якщо інший
+df = pd.read_excel('sales.xlsx', sheet_name='Sheet1')  # заміни на свій лист, якщо інший
 
 # Конвертуємо у список словників
 data = df.to_dict(orient='records')
