@@ -5,6 +5,9 @@ on:
     paths:
       - 'sales.xlsx'
 
+permissions:
+  contents: write
+
 jobs:
   convert:
     runs-on: ubuntu-latest
