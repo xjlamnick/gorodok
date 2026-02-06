@@ -1,35 +1,67 @@
-import pandas as pd
-import json
+#!/usr/bin/env python3
+"""
+Автоматичний скрипт для оновлення даних та завантаження на GitHub
+"""
+
+import subprocess
 import sys
 import os
+from datetime import datetime
 
-excel_file = 'sales.xlsx'
-json_file = 'sales-data.json'
+def run_command(cmd, description):
+    """Виконує команду та виводить результат"""
+    print(f"  {description}...")
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"  ❌ Помилка: {result.stderr}")
+        return False
+    return True
 
-# 1️⃣ Перевірка наявності файлу
-if not os.path.exists(excel_file):
-    print(f"Error: File '{excel_file}' not found!")
-    sys.exit(1)
+def main():
+    print("\n" + "="*60)
+    print("  ОНОВЛЕННЯ ТА ЗАВАНТАЖЕННЯ НА GITHUB")
+    print("="*60 + "\n")
+    
+    # Перевірка наявності файлу
+    if not os.path.exists('sales.xlsx'):
+        print("❌ Файл sales.xlsx не знайдено!")
+        print("   Переконайтесь, що файл знаходиться в цій папці\n")
+        sys.exit(1)
+    
+    # Крок 1: Оновлення даних
+    print("📊 Крок 1/4: Оновлення даних з Excel")
+    if not run_command('python3 update_data.py sales.xlsx', 'Конвертація даних'):
+        sys.exit(1)
+    
+    # Крок 2: Git add
+    print("\n📦 Крок 2/4: Підготовка файлів")
+    if not run_command('git add sales-data.json index.html', 'Додавання файлів до git'):
+        sys.exit(1)
+    
+    # Крок 3: Git commit
+    print("\n💾 Крок 3/4: Збереження змін")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    commit_msg = f"Оновлення даних: {timestamp}"
+    if not run_command(f'git commit -m "{commit_msg}"', 'Створення commit'):
+        print("  ⚠️  Немає змін для збереження")
+    
+    # Крок 4: Git push
+    print("\n🚀 Крок 4/4: Завантаження на GitHub")
+    if not run_command('git push', 'Відправка на GitHub'):
+        print("\n❌ Помилка при завантаженні на GitHub!")
+        print("\n💡 Можливі причини:")
+        print("   • Не налаштовано git remote")
+        print("   • Потрібна авторизація")
+        print("   • Немає інтернет з'єднання\n")
+        sys.exit(1)
+    
+    print("\n" + "="*60)
+    print("  ✅ УСПІХ!")
+    print("="*60)
+    print("\n📱 Ваш сайт оновлюється на GitHub Pages")
+    print("⏱️  Зачекайте 1-2 хвилини, потім оновіть сторінку\n")
+    print("🔗 Посилання:")
+    print("   https://ваш-username.github.io/sales-team/\n")
 
-try:
-    # 2️⃣ Зчитуємо всі листи Excel
-    all_sheets = pd.read_excel(excel_file, sheet_name=None, engine='openpyxl')
-    print(f"Found sheets: {list(all_sheets.keys())}")
-
-    # 3️⃣ Виводимо перші 5 рядків кожного листа для перевірки
-    for sheet_name, df in all_sheets.items():
-        print(f"\nSheet '{sheet_name}' preview:")
-        print(df.head())
-
-    # 4️⃣ Конвертуємо лише перший лист у JSON (можна змінити)
-    first_sheet_name = list(all_sheets.keys())[0]
-    data = all_sheets[first_sheet_name].to_dict(orient='records')
-
-    with open(json_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-    print(f"\nSuccessfully converted '{first_sheet_name}' to '{json_file}'")
-
-except Exception as e:
-    print(f"Error converting Excel to JSON: {e}")
-    sys.exit(1)
+if __name__ == "__main__":
+    main()
