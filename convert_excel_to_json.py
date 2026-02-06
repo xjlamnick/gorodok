@@ -1,67 +1,116 @@
 #!/usr/bin/env python3
 """
-Автоматичний скрипт для оновлення даних та завантаження на GitHub
+Скрипт для оновлення даних з Excel файлу
 """
 
-import subprocess
+import pandas as pd
+import json
 import sys
 import os
-from datetime import datetime
 
-def run_command(cmd, description):
-    """Виконує команду та виводить результат"""
-    print(f"  {description}...")
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"  ❌ Помилка: {result.stderr}")
+def update_data_from_excel(excel_file='sales.xlsx'):
+    """Оновлює sales-data.json з Excel файлу"""
+    
+    if not os.path.exists(excel_file):
+        print(f"❌ Файл '{excel_file}' не знайдено!")
         return False
-    return True
+    
+    print(f"📂 Читаю файл: {excel_file}")
+    
+    try:
+        # Читаємо файл (рядок 3 - заголовки, рядок 4+ - дані)
+        df = pd.read_excel(excel_file, header=2)
+        
+        # Градієнти
+        gradients = [
+            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+            'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+            'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+            'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)'
+        ]
+        
+        sales_data = []
+        
+        for idx, row in df.iterrows():
+            if pd.notna(row['ПК']):
+                name = str(row['ПК'])
+                
+                # Генеруємо ініціали
+                name_parts = name.split()
+                if len(name_parts) >= 2:
+                    initials = ''.join([p[0] for p in name_parts[:2]]).upper()
+                else:
+                    initials = name[0].upper()
+                
+                # Створюємо метрики (стовпці з 3-го)
+                metrics = {}
+                for col in df.columns[2:]:  # Починаємо з 3-го стовпця
+                    val = row[col]
+                    
+                    # Визначаємо тип даних та одиниці
+                    if pd.isna(val):
+                        val = 0
+                    
+                    # Перевіряємо чи це відсоток (значення між 0 і 1)
+                    if col in ['% Доля ACC', 'Доля Послуг', 'Конверсія ПК', 'Конверсія ПК Offline', 'Доля УДС']:
+                        value = round(float(val) * 100, 2) if pd.notna(val) else 0
+                        unit = '%'
+                    elif col in ['Шт.', 'Чеки', 'ПЧ']:
+                        value = int(val) if pd.notna(val) else 0
+                        unit = 'шт'
+                    elif col in ['ТО', 'ASP', 'Ср. Чек', 'ACC', 'Послуги грн', 'УДС']:
+                        value = round(float(val), 2) if pd.notna(val) else 0
+                        unit = 'грн'
+                    else:
+                        value = round(float(val), 2) if pd.notna(val) else 0
+                        unit = ''
+                    
+                    metrics[col] = {
+                        'value': value,
+                        'label': col,
+                        'unit': unit
+                    }
+                
+                person = {
+                    'id': len(sales_data) + 1,
+                    'name': name,
+                    'position': str(row['Посада']) if pd.notna(row['Посада']) else 'Менеджер з продажу',
+                    'initials': initials,
+                    'gradient': gradients[len(sales_data) % len(gradients)],
+                    'metrics': metrics
+                }
+                sales_data.append(person)
+        
+        # Зберігаємо
+        with open('sales-data.json', 'w', encoding='utf-8') as f:
+            json.dump(sales_data, f, ensure_ascii=False, indent=2)
+        
+        print(f"\n✅ Оновлено дані для {len(sales_data)} продавців:")
+        for p in sales_data:
+            print(f"   • {p['name']}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ Помилка: {e}")
+        return False
 
-def main():
-    print("\n" + "="*60)
-    print("  ОНОВЛЕННЯ ТА ЗАВАНТАЖЕННЯ НА GITHUB")
-    print("="*60 + "\n")
-    
-    # Перевірка наявності файлу
-    if not os.path.exists('sales.xlsx'):
-        print("❌ Файл sales.xlsx не знайдено!")
-        print("   Переконайтесь, що файл знаходиться в цій папці\n")
-        sys.exit(1)
-    
-    # Крок 1: Оновлення даних
-    print("📊 Крок 1/4: Оновлення даних з Excel")
-    if not run_command('python3 update_data.py sales.xlsx', 'Конвертація даних'):
-        sys.exit(1)
-    
-    # Крок 2: Git add
-    print("\n📦 Крок 2/4: Підготовка файлів")
-    if not run_command('git add sales-data.json index.html', 'Додавання файлів до git'):
-        sys.exit(1)
-    
-    # Крок 3: Git commit
-    print("\n💾 Крок 3/4: Збереження змін")
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    commit_msg = f"Оновлення даних: {timestamp}"
-    if not run_command(f'git commit -m "{commit_msg}"', 'Створення commit'):
-        print("  ⚠️  Немає змін для збереження")
-    
-    # Крок 4: Git push
-    print("\n🚀 Крок 4/4: Завантаження на GitHub")
-    if not run_command('git push', 'Відправка на GitHub'):
-        print("\n❌ Помилка при завантаженні на GitHub!")
-        print("\n💡 Можливі причини:")
-        print("   • Не налаштовано git remote")
-        print("   • Потрібна авторизація")
-        print("   • Немає інтернет з'єднання\n")
-        sys.exit(1)
-    
-    print("\n" + "="*60)
-    print("  ✅ УСПІХ!")
-    print("="*60)
-    print("\n📱 Ваш сайт оновлюється на GitHub Pages")
-    print("⏱️  Зачекайте 1-2 хвилини, потім оновіть сторінку\n")
-    print("🔗 Посилання:")
-    print("   https://ваш-username.github.io/sales-team/\n")
 
 if __name__ == "__main__":
-    main()
+    excel_file = sys.argv[1] if len(sys.argv) > 1 else 'sales.xlsx'
+    
+    print("\n" + "="*50)
+    print("  ОНОВЛЕННЯ ДАНИХ")
+    print("="*50 + "\n")
+    
+    if update_data_from_excel(excel_file):
+        print("\n" + "="*50)
+        print("  ✅ ГОТОВО!")
+        print("="*50 + "\n")
+    else:
+        sys.exit(1)
