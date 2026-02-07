@@ -86,18 +86,86 @@ def update_data_from_excel(excel_file='sales.xlsx'):
                 }
                 sales_data.append(person)
         
+        # Рахуємо загальні показники магазину
+        store_totals = {
+            'id': 0,
+            'name': 'Загальні показники магазину',
+            'position': 'Всі продавці',
+            'initials': 'МАГ',
+            'gradient': 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+            'metrics': {}
+        }
+
+        # Підсумовуємо всі метрики
+        for col in df.columns[2:]:
+            if col in ['% Доля ACC', 'Доля Послуг', 'Конверсія ПК', 'Конверсія ПК Offline', 'Доля УДС']:
+                # Для відсотків рахуємо середнє
+                values = [p['metrics'][col]['value'] for p in sales_data if col in p['metrics']]
+                avg_value = round(sum(values) / len(values), 2) if values else 0
+                store_totals['metrics'][col] = {
+                    'value': avg_value,
+                    'label': col,
+                    'unit': '%'
+                }
+            elif col in ['Шт.', 'Чеки', 'ПЧ']:
+                # Сумуємо
+                total = sum([p['metrics'][col]['value'] for p in sales_data if col in p['metrics']])
+                store_totals['metrics'][col] = {
+                    'value': int(total),
+                    'label': col,
+                    'unit': 'шт'
+                }
+            elif col in ['ТО', 'ASP', 'Ср. Чек', 'ACC', 'Послуги грн', 'УДС']:
+                # Сумуємо (крім ASP та Ср. Чек - там середнє)
+                if col in ['ASP', 'Ср. Чек']:
+                    values = [p['metrics'][col]['value'] for p in sales_data if col in p['metrics']]
+                    avg_value = round(sum(values) / len(values), 2) if values else 0
+                    store_totals['metrics'][col] = {
+                        'value': avg_value,
+                        'label': col,
+                        'unit': 'грн'
+                    }
+                else:
+                    total = sum([p['metrics'][col]['value'] for p in sales_data if col in p['metrics']])
+                    store_totals['metrics'][col] = {
+                        'value': round(total, 2),
+                        'label': col,
+                        'unit': 'грн'
+                    }
+            else:
+                # Інші - середнє
+                values = [p['metrics'][col]['value'] for p in sales_data if col in p['metrics']]
+                avg_value = round(sum(values) / len(values), 2) if values else 0
+                store_totals['metrics'][col] = {
+                    'value': avg_value,
+                    'label': col,
+                    'unit': ''
+                }
+        
+        # Додаємо магазин на початок
+        all_data = [store_totals] + sales_data
+        
         # Зберігаємо
         with open('sales-data.json', 'w', encoding='utf-8') as f:
-            json.dump(sales_data, f, ensure_ascii=False, indent=2)
+            json.dump(all_data, f, ensure_ascii=False, indent=2)
         
-        print(f"\n✅ Оновлено дані для {len(sales_data)} продавців:")
+        print(f"\n✅ Оновлено дані:")
+        print(f"   📊 Магазин (загальні показники)")
+        print(f"   👥 {len(sales_data)} продавців:")
         for p in sales_data:
-            print(f"   • {p['name']}")
+            print(f"      • {p['name']}")
+        
+        print(f"\n📈 Загальні показники:")
+        print(f"   ТО: {store_totals['metrics']['ТО']['value']:,.2f} грн")
+        print(f"   Послуги: {store_totals['metrics']['Послуги грн']['value']:,.2f} грн")
+        print(f"   Перші чеки: {store_totals['metrics']['ПЧ']['value']} шт")
         
         return True
         
     except Exception as e:
         print(f"\n❌ Помилка: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
