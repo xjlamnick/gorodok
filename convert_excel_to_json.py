@@ -7,7 +7,6 @@ EXCEL_FILE = "sales.xlsx"
 JSON_FILE = "sales-data.json"
 
 gradients = [
-    'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
     'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
     'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
@@ -22,11 +21,18 @@ PERCENT_COLS = ['% Доля ACC', 'Доля Послуг', 'Конверсія �
 COUNT_COLS = ['Шт.', 'Чеки', 'ПЧ']
 MONEY_COLS = ['ТО', 'ASP', 'Ср. Чек', 'ACC', 'Послуги грн', 'УДС']
 
+
 def normalize_number(val):
     if pd.isna(val):
         return 0.0
+
     if isinstance(val, str):
         val = val.replace('%', '').replace(',', '.').strip()
+        try:
+            return float(val)
+        except:
+            return 0.0
+
     try:
         return float(val)
     except:
@@ -51,9 +57,64 @@ def main():
 
     sales_data = []
 
-    # ======================
-    # ПРОДАВЦІ
-    # ======================
+    # =========================
+    # 🔹 ЗАГАЛЬНІ ПОКАЗНИКИ МАГАЗИНУ (ФОРМУЛИ)
+    # =========================
+    total_metrics = {}
+
+    for col in metric_columns:
+        values = df[col].apply(normalize_number)
+
+        if col in PERCENT_COLS:
+            # формули
+            if col == '% Доля ACC':
+                acc_sum = df['ACC'].apply(normalize_number).sum()
+                to_sum = df['ТО'].apply(normalize_number).sum()
+                value = (acc_sum / to_sum * 100) if to_sum else 0
+            elif col == 'Доля Послуг':
+                services_sum = df['Послуги грн'].apply(normalize_number).sum()
+                to_sum = df['ТО'].apply(normalize_number).sum()
+                value = (services_sum / to_sum * 100) if to_sum else 0
+            elif col == 'Доля УДС':
+                uds_sum = df['УДС'].apply(normalize_number).sum()
+                to_sum = df['ТО'].apply(normalize_number).sum()
+                value = (uds_sum / to_sum * 100) if to_sum else 0
+            else:
+                value = values.mean()
+
+            unit = "%"
+            value = round(value, 2)
+
+        elif col in COUNT_COLS:
+            value = int(values.sum())
+            unit = "шт"
+
+        elif col in MONEY_COLS:
+            value = round(values.sum(), 2)
+            unit = "грн"
+
+        else:
+            value = round(values.sum(), 2)
+            unit = ""
+
+        total_metrics[col] = {
+            "value": value,
+            "label": col,
+            "unit": unit
+        }
+
+    sales_data.append({
+        "id": 0,
+        "name": "Загальні показники магазину",
+        "position": "Всі продавці",
+        "initials": "МАГ",
+        "gradient": "linear-gradient(135deg, #FFD700 0%, #FFA500 100%)",
+        "metrics": total_metrics
+    })
+
+    # =========================
+    # 🔹 ПРОДАВЦІ
+    # =========================
     for idx, row in df.iterrows():
         name = str(row["ПК"]).strip()
         if not name or name == "nan":
@@ -65,17 +126,24 @@ def main():
         metrics = {}
 
         for col in metric_columns:
-            num = normalize_number(row[col])
+            raw_val = row[col]
+            num = normalize_number(raw_val)
 
             if col in PERCENT_COLS:
+                # фікс відсотків
+                if num <= 1:
+                    num = num * 100
                 value = round(num, 2)
                 unit = "%"
+
             elif col in COUNT_COLS:
                 value = int(num)
                 unit = "шт"
+
             elif col in MONEY_COLS:
                 value = round(num, 2)
                 unit = "грн"
+
             else:
                 value = round(num, 2)
                 unit = ""
@@ -86,73 +154,22 @@ def main():
                 "unit": unit
             }
 
-        sales_data.append({
-            "id": len(sales_data) + 1,
+        person = {
+            "id": len(sales_data),
             "name": name,
             "position": str(row["Посада"]) if pd.notna(row["Посада"]) else "продавец-консультант",
             "initials": initials,
-            "gradient": gradients[(len(sales_data)) % len(gradients)],
+            "gradient": gradients[(len(sales_data) - 1) % len(gradients)],
             "metrics": metrics
-        })
-
-    # ======================
-    # МАГАЗИН (ФОРМУЛИ)
-    # ======================
-    total_metrics = {}
-
-    total_TO = df["ТО"].apply(normalize_number).sum()
-    total_units = df["Шт."].apply(normalize_number).sum()
-    total_checks = df["Чеки"].apply(normalize_number).sum()
-    total_ACC = df["ACC"].apply(normalize_number).sum()
-    total_services = df["Послуги грн"].apply(normalize_number).sum()
-    total_UDS = df["УДС"].apply(normalize_number).sum()
-    total_PCH = df["ПЧ"].apply(normalize_number).sum()
-
-    avg_conv = df["Конверсія ПК"].apply(normalize_number).mean()
-    avg_conv_off = df["Конверсія ПК Offline"].apply(normalize_number).mean()
-
-    def safe_div(a, b):
-        return round(a / b, 2) if b != 0 else 0
-
-    computed = {
-        "ТО": (round(total_TO, 2), "грн"),
-        "Шт.": (int(total_units), "шт"),
-        "Чеки": (int(total_checks), "шт"),
-        "ASP": (safe_div(total_TO, total_units), "грн"),
-        "Ср. Чек": (safe_div(total_TO, total_checks), "грн"),
-        "КПЧ": (safe_div(total_units, total_checks), ""),
-        "ACC": (round(total_ACC, 2), "грн"),
-        "% Доля ACC": (safe_div(total_ACC * 100, total_TO), "%"),
-        "Послуги грн": (round(total_services, 2), "грн"),
-        "Доля Послуг": (safe_div(total_services * 100, total_TO), "%"),
-        "ПЧ": (int(total_PCH), "шт"),
-        "Конверсія ПК": (round(avg_conv, 2), "%"),
-        "Конверсія ПК Offline": (round(avg_conv_off, 2), "%"),
-        "УДС": (round(total_UDS, 2), "грн"),
-        "Доля УДС": (safe_div(total_UDS * 100, total_TO), "%")
-    }
-
-    for key, (value, unit) in computed.items():
-        total_metrics[key] = {
-            "value": value,
-            "label": key,
-            "unit": unit
         }
 
-    sales_data.insert(0, {
-        "id": 0,
-        "name": "Загальні показники магазину",
-        "position": "Всі продавці",
-        "initials": "МАГ",
-        "gradient": gradients[0],
-        "metrics": total_metrics
-    })
+        sales_data.append(person)
 
     with open(JSON_FILE, "w", encoding="utf-8") as f:
         json.dump(sales_data, f, ensure_ascii=False, indent=2)
 
     print(f"✅ Успішно створено {JSON_FILE}")
-    print(f"👥 Записів: {len(sales_data)}")
+    print(f"👥 Продавців: {len(sales_data) - 1}")
 
 
 if __name__ == "__main__":
